@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Train — CreditFairAI{% endblock %}
+{% block content %}
+<div class="container px-4 py-4">
+  <h2 class="page-title"><i class="fa-solid fa-brain me-2"></i>Model Training</h2>
+  <p class="text-muted mb-4">Train all 4 ML models and run the complete fairness analysis pipeline.</p>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card-custom h-100">
+        <h5 class="card-title-custom"><i class="fa-solid fa-cogs me-2"></i>Configuration</h5>
+        <table class="table table-sm table-striped mb-0">
+          <tr><td class="fw-bold">Dataset</td><td>German Credit (UCI, 1,000 records)</td></tr>
+          <tr><td class="fw-bold">Train/Test</td><td>80% / 20% stratified</td></tr>
+          <tr><td class="fw-bold">Cross-Validation</td><td>5-fold stratified CV</td></tr>
+          <tr><td class="fw-bold">Models</td><td>LR · RF · XGBoost · DNN</td></tr>
+          <tr><td class="fw-bold">Mitigation</td><td>Reweighing · SMOTE · Threshold Opt. · Prejudice Remover</td></tr>
+          <tr><td class="fw-bold">Fairness Metrics</td><td>DPD · DIR · EOD · EqODD · Shapley-Lorenz</td></tr>
+          <tr><td class="fw-bold">Est. Duration</td><td>3–5 minutes</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-custom h-100">
+        <h5 class="card-title-custom"><i class="fa-solid fa-list-check me-2"></i>Pipeline Steps</h5>
+        <ol class="mb-0" style="font-size:.9rem;line-height:2">
+          <li>Download / load German Credit Dataset from UCI</li>
+          <li>Preprocess: encoding, normalization, proxy detection</li>
+          <li>Train Logistic Regression (L2 regularised baseline)</li>
+          <li>Train Random Forest (500 trees, max depth 10)</li>
+          <li>Train XGBoost (300 estimators, lr=0.05)</li>
+          <li>Train Deep Neural Network (256-128-64, ReLU, Adam)</li>
+          <li>Compute 5 fairness metrics per model</li>
+          <li>Apply Reweighing, SMOTE, Prejudice Remover, Threshold Opt.</li>
+          <li>Shapley-Lorenz feature attribution</li>
+          <li>Generate all comparison plots</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="card-custom mb-4" id="prog-card" style="display:none">
+    <h5 class="card-title-custom">
+      <i class="fa-solid fa-spinner fa-spin me-2" id="spin-icon"></i>Progress
+    </h5>
+    <div class="progress mb-2" style="height:22px">
+      <div class="progress-bar progress-bar-striped progress-bar-animated"
+           id="pbar" style="width:0%">0%</div>
+    </div>
+    <div id="step-lbl" class="text-muted small">Initialising …</div>
+  </div>
+
+  <!-- Buttons / result -->
+  <div id="start-sec">
+    {% if status.status == 'done' %}
+    <div class="alert alert-success mb-3">
+      <i class="fa-solid fa-check-circle me-2"></i>
+      Training complete!
+      <a href="/fairness" class="alert-link ms-2">View Fairness Report →</a>
+    </div>
+    {% elif status.status == 'error' %}
+    <div class="alert alert-danger mb-3">
+      <i class="fa-solid fa-triangle-exclamation me-2"></i>
+      {{ status.message }}
+    </div>
+    {% endif %}
+    {% if status.status != 'running' %}
+    <button class="btn btn-main btn-lg" id="train-btn" onclick="startTraining()">
+      <i class="fa-solid fa-play me-2"></i>
+      {% if status.status == 'done' %}Retrain Models{% else %}Start Training Pipeline{% endif %}
+    </button>
+    {% endif %}
+  </div>
+
+  <div id="done-sec" style="display:none">
+    <div class="alert alert-success"><i class="fa-solid fa-check-circle me-2"></i>Training complete!</div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="/fairness" class="btn btn-main"><i class="fa-solid fa-balance-scale me-2"></i>Fairness Report</a>
+      <a href="/compare"  class="btn btn-outline-main"><i class="fa-solid fa-chart-bar me-2"></i>Compare Models</a>
+      <a href="/predict"  class="btn btn-outline-main"><i class="fa-solid fa-magnifying-glass-chart me-2"></i>Predict</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let poll;
+function startTraining(){
+  const btn=document.getElementById('train-btn');
+  btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin me-2"></i>Starting…';
+  document.getElementById('prog-card').style.display='block';
+  fetch('/api/train',{method:'POST'})
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.error){alert(d.error);btn.disabled=false;return;}
+      poll=setInterval(pollStatus,2000);
+    });
+}
+function pollStatus(){
+  fetch('/api/train/status').then(r=>r.json()).then(d=>{
+    const bar=document.getElementById('pbar');
+    const lbl=document.getElementById('step-lbl');
+    const pct=d.progress||0;
+    bar.style.width=pct+'%'; bar.textContent=pct+'%';
+    lbl.textContent=d.step||'';
+    if(d.status==='done'){
+      clearInterval(poll);
+      document.getElementById('spin-icon').classList.remove('fa-spin');
+      bar.classList.remove('progress-bar-animated');
+      document.getElementById('start-sec').style.display='none';
+      document.getElementById('done-sec').style.display='block';
+    }else if(d.status==='error'){
+      clearInterval(poll);
+      lbl.textContent='Error: '+d.message;
+      bar.classList.add('bg-danger');
+    }
+  });
+}
+{% if status.status=='running' %}
+document.getElementById('prog-card').style.display='block';
+poll=setInterval(pollStatus,2000);
+{% endif %}
+</script>
+{% endblock %}

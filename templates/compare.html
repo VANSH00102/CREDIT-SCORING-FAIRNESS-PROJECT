@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Compare — CreditFairAI{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <h2 class="page-title"><i class="fa-solid fa-chart-bar me-2"></i>Model Performance Comparison</h2>
+  <p class="text-muted mb-4">Side-by-side comparison of all 4 ML models on accuracy and fairness.</p>
+
+  {% if not results %}
+  <div class="alert alert-warning">
+    <i class="fa-solid fa-triangle-exclamation me-2"></i>
+    No results yet. <a href="/train" class="alert-link">Train models first →</a>
+  </div>
+  {% else %}
+
+  <!-- ROC + performance summary -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-7">
+      <div class="card-custom h-100">
+        <h5 class="card-title-custom"><i class="fa-solid fa-chart-area me-2"></i>ROC Curves — All Models</h5>
+        {% if results.plots and results.plots.roc %}
+        <img src="/static/images/{{ results.plots.roc }}" class="img-fluid rounded"/>
+        {% endif %}
+      </div>
+    </div>
+    <div class="col-md-5">
+      <div class="card-custom h-100">
+        <h5 class="card-title-custom"><i class="fa-solid fa-table me-2"></i>Performance Summary</h5>
+        <table class="table table-hover table-sm mb-0">
+          <thead class="table-dark">
+            <tr><th>Model</th><th>Accuracy</th><th>AUC</th><th>F1</th><th>Time</th></tr>
+          </thead>
+          <tbody>
+            {% for m in results.performance %}
+            <tr>
+              <td class="fw-bold small">{{ m.model }}</td>
+              <td>{{ (m.accuracy*100)|round(1) }}%</td>
+              <td><span class="badge bg-primary">{{ m.auc_roc }}</span></td>
+              <td>{{ m.f1 }}</td>
+              <td class="text-muted">{{ m.train_time }}s</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS charts -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card-custom">
+        <h5 class="card-title-custom"><i class="fa-solid fa-trophy me-2"></i>AUC-ROC Comparison</h5>
+        <canvas id="auc-chart" height="200"></canvas>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-custom">
+        <h5 class="card-title-custom"><i class="fa-solid fa-th me-2"></i>Precision / Recall / F1</h5>
+        <canvas id="prf-chart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full matrix table -->
+  <div class="card-custom mb-4">
+    <h5 class="card-title-custom"><i class="fa-solid fa-list-ol me-2"></i>Full Model × Fairness Matrix</h5>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>Model</th><th>Accuracy</th><th>AUC</th><th>F1</th>
+            <th>DPD ↓</th><th>DIR</th><th>Compliant</th>
+            <th>EqODD ↓</th><th>AUC Gap ↓</th><th>Train Time</th>
+          </tr>
+        </thead>
+        <tbody id="matrix-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Confusion matrices row -->
+  <div class="card-custom mb-4">
+    <h5 class="card-title-custom"><i class="fa-solid fa-grid me-2"></i>Confusion Matrices</h5>
+    <div class="row g-3" id="cm-row"></div>
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+{% if results %}
+<script>
+const COLORS=['#1F4E9A','#1A7A4A','#D68910','#C0392B'];
+fetch('/api/compare').then(r=>r.json()).then(data=>{
+  const perf=data.performance||[];
+  const fair=data.baseline_fairness||[];
+  const names=perf.map(m=>m.model);
+
+  // AUC chart
+  new Chart(document.getElementById('auc-chart'),{type:'bar',
+    data:{labels:names,datasets:[{label:'AUC-ROC',
+      data:perf.map(m=>m.auc_roc),backgroundColor:COLORS,borderRadius:6}]},
+    options:{plugins:{legend:{display:false}},scales:{y:{min:0.5,max:1}}}});
+
+  // PRF chart
+  new Chart(document.getElementById('prf-chart'),{type:'bar',
+    data:{labels:names,datasets:[
+      {label:'Precision',data:perf.map(m=>m.precision),backgroundColor:'#1F4E9A',borderRadius:4},
+      {label:'Recall',   data:perf.map(m=>m.recall),   backgroundColor:'#1A7A4A',borderRadius:4},
+      {label:'F1',       data:perf.map(m=>m.f1),       backgroundColor:'#D68910', borderRadius:4},
+    ]},
+    options:{plugins:{legend:{position:'top'}},scales:{y:{min:0,max:1}}}});
+
+  // Matrix table
+  const tbody=document.getElementById('matrix-body');
+  perf.forEach((p,i)=>{
+    const f=fair[i]||{};
+    tbody.innerHTML+=`<tr>
+      <td class="fw-bold">${p.model}</td>
+      <td>${(p.accuracy*100).toFixed(1)}%</td>
+      <td><span class="badge bg-primary">${p.auc_roc}</span></td>
+      <td>${p.f1}</td>
+      <td class="${f.dpd>0.1?'text-danger fw-bold':'text-success'}">${f.dpd??'—'}</td>
+      <td>${f.dir??'—'}</td>
+      <td>${f.dir_compliant?'<span class="badge bg-success">✓</span>':'<span class="badge bg-danger">✗</span>'}</td>
+      <td>${f.eqodd??'—'}</td>
+      <td>${f.auc_gap??'—'}</td>
+      <td class="text-muted">${p.train_time}s</td>
+    </tr>`;
+  });
+
+  // Confusion matrices
+  const cmRow=document.getElementById('cm-row');
+  perf.forEach((p,i)=>{
+    const cm=p.confusion_matrix||[[0,0],[0,0]];
+    cmRow.innerHTML+=`
+    <div class="col-md-3">
+      <div class="card-custom text-center">
+        <h6 class="fw-bold">${p.model}</h6>
+        <table class="table table-bordered table-sm mx-auto" style="width:auto">
+          <thead><tr><th></th><th>Pred Good</th><th>Pred Bad</th></tr></thead>
+          <tbody>
+            <tr><th>Act Good</th><td class="bg-success text-white">${cm[0][0]}</td><td class="bg-warning">${cm[0][1]}</td></tr>
+            <tr><th>Act Bad</th> <td class="bg-warning">${cm[1][0]}</td><td class="bg-danger text-white">${cm[1][1]}</td></tr>
+          </tbody>
+        </table>
+        <div class="text-muted small">
+          Acc: ${(p.accuracy*100).toFixed(1)}% | AUC: ${p.auc_roc}
+        </div>
+      </div>
+    </div>`;
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — CreditFairAI{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <!-- Hero -->
+  <div class="hero mb-4">
+    <div class="row align-items-center">
+      <div class="col-lg-8">
+        <h1 class="hero-title">Algorithmic Fairness in Credit Scoring</h1>
+        <p class="hero-sub">
+          End-to-end ML pipeline that <strong>detects</strong>,
+          <strong>measures</strong>, and <strong>mitigates</strong> demographic
+          bias in credit approval decisions using 4 models, 5 fairness metrics,
+          and 4 mitigation strategies.
+        </p>
+        <div class="d-flex gap-2 mt-3 flex-wrap">
+          {% if status.status == 'done' %}
+          <a href="/predict" class="btn btn-main">
+            <i class="fa-solid fa-magnifying-glass-chart me-2"></i>Make Prediction
+          </a>
+          <a href="/fairness" class="btn btn-outline-main">
+            <i class="fa-solid fa-balance-scale me-2"></i>Fairness Report
+          </a>
+          {% else %}
+          <a href="/train" class="btn btn-main">
+            <i class="fa-solid fa-play me-2"></i>Start Training
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-lg-4 text-center mt-3 mt-lg-0">
+        <div class="hero-badge">
+          <i class="fa-solid fa-shield-halved fa-3x mb-2 txt-accent"></i>
+          <div class="fw-bold fs-5">EEOC Compliant</div>
+          <div class="text-light-50 small">DIR ≥ 0.80 Threshold</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stat cards (only after training) -->
+  {% if stats %}
+  <div class="row g-3 mb-4">
+    {% for icon,color,val,lbl in [
+      ('fa-database','bg-blue', stats.n_train, 'Training Samples'),
+      ('fa-vial',    'bg-green',stats.n_test,  'Test Samples'),
+      ('fa-list',    'bg-gold', stats.n_feat,  'Features'),
+      ('fa-trophy',  'bg-red',  stats.best_auc,stats.best_model+' AUC'),
+    ] %}
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-icon {{ color }}"><i class="fa-solid {{ icon }}"></i></div>
+        <div class="stat-val">{{ val }}</div>
+        <div class="stat-lbl">{{ lbl }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Pipeline -->
+  <div class="card-custom mb-4">
+    <h5 class="card-title-custom"><i class="fa-solid fa-sitemap me-2"></i>Project Pipeline</h5>
+    <div class="pipeline">
+      {% set steps=[
+        ('fa-database','Dataset','German Credit · COMPAS · FICO'),
+        ('fa-broom','Preprocessing','OHE · Normalize · Proxy detect'),
+        ('fa-brain','Training','LR · RF · XGBoost · DNN'),
+        ('fa-balance-scale','Fairness Eval','DPD · DIR · EOD · EqODD · SL'),
+        ('fa-shield-halved','Mitigation','Reweighing · SMOTE · Threshold Opt.'),
+        ('fa-chart-line','Results','Before / After comparison'),
+      ] %}
+      {% for icon,title,sub in steps %}
+      <div class="pipe-step">
+        <div class="pipe-icon"><i class="fa-solid {{ icon }}"></i></div>
+        <div class="fw-bold small">{{ title }}</div>
+        <div class="text-muted" style="font-size:.72rem">{{ sub }}</div>
+      </div>
+      {% if not loop.last %}
+      <div class="pipe-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Dataset + Tech Stack -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card-custom h-100">
+        <h5 class="card-title-custom"><i class="fa-solid fa-database me-2"></i>Dataset</h5>
+        <table class="table table-sm table-striped mb-0">
+          <tbody>
+            <tr><td class="fw-bold">Name</td><td>German Credit Dataset (UCI)</td></tr>
+            <tr><td class="fw-bold">Records</td><td>1,000 credit applications</td></tr>
+            <tr><td class="fw-bold">Features</td><td>20 (categorical + numerical)</td></tr>
+            <tr><td class="fw-bold">Target</td><td>Credit Risk (0=Good / 1=Bad)</td></tr>
+            <tr><td class="fw-bold">Protected Attr.</td><td>Sex (Male=1 / Female=0)</td></tr>
+            <tr><td class="fw-bold">Class Balance</td><td>70% Good, 30% Bad</td></tr>
+            <tr><td class="fw-bold">Split</td><td>80% train / 20% test (stratified)</td></tr>
+            <tr><td class="fw-bold">Source</td>
+                <td><a href="https://archive.ics.uci.edu/ml/datasets/statlog+(german+credit+data)"
+                       target="_blank">UCI ML Repository</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-custom h-100">
+        <h5 class="card-title-custom"><i class="fa-solid fa-layer-group me-2"></i>Tech Stack</h5>
+        <div class="tech-grid">
+          {% for t in ['Python 3.10','scikit-learn','XGBoost','Flask',
+                       'SHAP','imbalanced-learn','pandas / NumPy','matplotlib'] %}
+          <div class="tech-tag">{{ t }}</div>
+          {% endfor %}
+        </div>
+        <hr/>
+        <h6 class="fw-bold">ML Models</h6>
+        <div class="tech-grid">
+          {% for t in ['Logistic Regression','Random Forest','XGBoost','Deep NN'] %}
+          <div class="tech-tag bg-blue-lt">{{ t }}</div>
+          {% endfor %}
+        </div>
+        <hr/>
+        <h6 class="fw-bold">Fairness Metrics</h6>
+        <div class="tech-grid">
+          {% for t in ['DPD','DIR (EEOC)','EOD','EqODD','Shapley-Lorenz'] %}
+          <div class="tech-tag bg-green-lt">{{ t }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="card-custom">
+    <h5 class="card-title-custom"><i class="fa-solid fa-circle-info me-2"></i>System Status</h5>
+    {% if status.status == 'not_started' %}
+    <div class="alert alert-info mb-0">
+      <i class="fa-solid fa-info-circle me-2"></i>
+      <strong>Ready to train.</strong>
+      Click <a href="/train" class="alert-link">Train Models</a> to begin (~3–5 min).
+    </div>
+    {% elif status.status == 'running' %}
+    <div class="alert alert-warning mb-0">
+      <i class="fa-solid fa-spinner fa-spin me-2"></i>
+      <strong>Training …</strong> {{ status.step }} ({{ status.progress }}%)
+    </div>
+    {% elif status.status == 'done' %}
+    <div class="alert alert-success mb-0">
+      <i class="fa-solid fa-check-circle me-2"></i>
+      <strong>Training complete!</strong>
+      <a href="/fairness" class="alert-link ms-2">View Fairness Report →</a>
+    </div>
+    {% elif status.status == 'error' %}
+    <div class="alert alert-danger mb-0">
+      <i class="fa-solid fa-exclamation-triangle me-2"></i>
+      Error: {{ status.message }}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+{% block scripts %}
+{% if status.status == 'running' %}
+<script>setTimeout(()=>location.reload(),3000);</script>
+{% endif %}
+{% endblock %}

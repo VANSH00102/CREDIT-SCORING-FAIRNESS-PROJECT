@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}Fairness — CreditFairAI{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <h2 class="page-title"><i class="fa-solid fa-balance-scale me-2"></i>Fairness Analysis Dashboard</h2>
+  <p class="text-muted mb-4">Bias detection, fairness metrics, and before/after mitigation comparison.</p>
+
+  {% if not results %}
+  <div class="alert alert-warning">
+    <i class="fa-solid fa-triangle-exclamation me-2"></i>
+    No results yet. <a href="/train" class="alert-link">Train models first →</a>
+  </div>
+  {% else %}
+
+  <!-- Key metric cards (XGBoost baseline) -->
+  {% set xm = results.baseline_fairness | selectattr('model','equalto','XGBoost') | first %}
+  {% if xm %}
+  <div class="row g-3 mb-4">
+    {% set dpd_bad = xm.dpd > 0.10 %}
+    {% set dir_bad = not xm.dir_compliant %}
+    <div class="col-6 col-md-3">
+      <div class="stat-card {{ 'border-danger' if dpd_bad else 'border-success' }}">
+        <div class="stat-icon {{ 'bg-red' if dpd_bad else 'bg-green' }}">
+          <i class="fa-solid fa-not-equal"></i></div>
+        <div class="stat-val">{{ xm.dpd }}</div>
+        <div class="stat-lbl">DPD — XGBoost baseline</div>
+        <div class="small {{ 'text-danger' if dpd_bad else 'text-success' }} fw-bold">
+          {{ 'Biased' if dpd_bad else 'Acceptable' }}
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card {{ 'border-danger' if dir_bad else 'border-success' }}">
+        <div class="stat-icon {{ 'bg-red' if dir_bad else 'bg-green' }}">
+          <i class="fa-solid fa-gavel"></i></div>
+        <div class="stat-val">{{ xm.dir }}</div>
+        <div class="stat-lbl">DIR — EEOC ≥ 0.80</div>
+        <div class="small {{ 'text-danger' if dir_bad else 'text-success' }} fw-bold">
+          {{ '✗ Non-Compliant' if dir_bad else '✓ Compliant' }}
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-icon bg-gold"><i class="fa-solid fa-arrows-left-right-to-line"></i></div>
+        <div class="stat-val">{{ xm.eqodd }}</div>
+        <div class="stat-lbl">Equalized Odds Diff.</div>
+        <div class="small text-muted">Lower = fairer</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-icon bg-blue"><i class="fa-solid fa-chart-line"></i></div>
+        <div class="stat-val">{{ xm.auc_gap }}</div>
+        <div class="stat-lbl">AUC Gap (M vs F)</div>
+        <div class="small text-muted">Group AUC difference</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Plots -->
+  {% set pl = results.plots %}
+  <div class="row g-3 mb-4">
+    {% if pl.fairness_bar %}
+    <div class="col-md-8">
+      <div class="card-custom h-100">
+        <h5 class="card-title-custom"><i class="fa-solid fa-chart-bar me-2"></i>Fairness: Baseline vs Mitigated</h5>
+        <img src="/static/images/{{ pl.fairness_bar }}" class="img-fluid rounded"/>
+      </div>
+    </div>
+    {% endif %}
+    {% if pl.approval %}
+    <div class="col-md-4">
+      <div class="card-custom h-100">
+        <h5 class="card-title-custom"><i class="fa-solid fa-users me-2"></i>Approval Rates by Gender</h5>
+        <img src="/static/images/{{ pl.approval }}" class="img-fluid rounded"/>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="row g-3 mb-4">
+    {% if pl.shapley %}
+    <div class="col-md-6">
+      <div class="card-custom h-100">
+        <h5 class="card-title-custom"><i class="fa-solid fa-dna me-2"></i>Shapley-Lorenz Attribution</h5>
+        <img src="/static/images/{{ pl.shapley }}" class="img-fluid rounded"/>
+        <p class="text-muted small mt-2 mb-0">Features driving demographic bias. Excluded attributes may be recovered via proxy variables.</p>
+      </div>
+    </div>
+    {% endif %}
+    {% if pl.tradeoff %}
+    <div class="col-md-6">
+      <div class="card-custom h-100">
+        <h5 class="card-title-custom"><i class="fa-solid fa-sliders me-2"></i>Accuracy vs Fairness (Pareto)</h5>
+        <img src="/static/images/{{ pl.tradeoff }}" class="img-fluid rounded"/>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Baseline fairness table -->
+  <div class="card-custom mb-4">
+    <h5 class="card-title-custom"><i class="fa-solid fa-table me-2"></i>Baseline Fairness — All Models</h5>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Model</th><th>AUC-ROC</th><th>DPD ↓</th>
+            <th>DIR</th><th>Compliant</th><th>EOD ↓</th><th>EqODD ↓</th>
+            <th>TPR Male</th><th>TPR Female</th><th>AUC Gap ↓</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in results.baseline_fairness %}
+          <tr>
+            <td class="fw-bold">{{ m.model }}</td>
+            <td><span class="badge bg-primary">{{ m.auc_roc }}</span></td>
+            <td class="{{ 'text-danger fw-bold' if m.dpd > 0.10 else 'text-success' }}">{{ m.dpd }}</td>
+            <td>{{ m.dir }}</td>
+            <td>
+              {% if m.dir_compliant %}<span class="badge bg-success">✓ Compliant</span>
+              {% else %}<span class="badge bg-danger">✗ Violation</span>{% endif %}
+            </td>
+            <td>{{ m.eod }}</td><td>{{ m.eqodd }}</td>
+            <td>{{ m.tpr_male }}</td><td>{{ m.tpr_female }}</td>
+            <td>{{ m.auc_gap }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Mitigation table -->
+  <div class="card-custom mb-4">
+    <h5 class="card-title-custom"><i class="fa-solid fa-shield-halved me-2"></i>Mitigation Results (XGBoost)</h5>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Strategy</th><th>AUC-ROC</th><th>DPD ↓</th>
+            <th>DIR</th><th>Compliant</th><th>EqODD ↓</th><th>DPD Reduction</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set bline_dpd = (results.mitigation_results | selectattr('model','equalto','Baseline') | first).dpd %}
+          {% for m in results.mitigation_results %}
+          {% set red = ((bline_dpd - m.dpd)/bline_dpd*100)|round(1) if bline_dpd else 0 %}
+          <tr class="{{ 'table-success' if m.model == 'Threshold Opt.' else '' }}">
+            <td class="fw-bold">
+              {{ m.model }}
+              {% if m.model == 'Threshold Opt.' %}<span class="badge bg-success ms-1">★ Best</span>{% endif %}
+            </td>
+            <td>{{ m.auc_roc|round(4) }}</td>
+            <td class="{{ 'text-success fw-bold' if m.dpd < 0.08 else '' }}">{{ m.dpd }}</td>
+            <td>{{ m.dir }}</td>
+            <td>{% if m.dir_compliant %}<span class="badge bg-success">✓</span>
+                {% else %}<span class="badge bg-danger">✗</span>{% endif %}</td>
+            <td>{{ m.eqodd }}</td>
+            <td>{% if red > 0 %}<span class="text-success">↓ {{ red }}%</span>{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-muted small mt-2 mb-0">
+      <i class="fa-solid fa-info-circle me-1"></i>
+      ★ Threshold Optimisation delivers best fairness-per-accuracy trade-off.
+    </p>
+  </div>
+
+  <!-- Approval rate JS chart -->
+  <div class="card-custom mb-4">
+    <h5 class="card-title-custom"><i class="fa-solid fa-chart-pie me-2"></i>Group Approval Rates (Baseline)</h5>
+    <div class="row">
+      <div class="col-md-8"><canvas id="approval-chart" height="80"></canvas></div>
+      <div class="col-md-4">
+        <div class="alert alert-info small">
+          <strong>EEOC 80% Rule:</strong><br/>
+          Approval rate for female must be ≥ 80% of male rate.<br/>
+          DIR = P(approved|female) / P(approved|male) ≥ 0.80
+        </div>
+        {% if xm %}
+        <table class="table table-sm">
+          <tr><td>Male Approval Rate</td>
+              <td class="fw-bold">{{ ((1-xm.pr_male)*100)|round(1) }}%</td></tr>
+          <tr><td>Female Approval Rate</td>
+              <td class="fw-bold {{ 'text-danger' if xm.dir < 0.80 else 'text-success' }}">
+                {{ ((1-xm.pr_female)*100)|round(1) }}%</td></tr>
+          <tr><td>DIR (XGBoost baseline)</td>
+              <td class="fw-bold {{ 'text-danger' if xm.dir < 0.80 else 'text-success' }}">
+                {{ xm.dir }}</td></tr>
+        </table>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+{% if results %}
+<script>
+fetch('/api/fairness').then(r=>r.json()).then(data=>{
+  const base=data.baseline_fairness||[];
+  new Chart(document.getElementById('approval-chart'),{type:'bar',
+    data:{labels:base.map(m=>m.model),
+      datasets:[
+        {label:'Male Approval %',data:base.map(m=>((1-m.pr_male)*100).toFixed(1)),backgroundColor:'#1F4E9A',borderRadius:4},
+        {label:'Female Approval %',data:base.map(m=>((1-m.pr_female)*100).toFixed(1)),backgroundColor:'#C0392B',borderRadius:4},
+      ]},
+    options:{plugins:{legend:{position:'top'}},
+             scales:{y:{beginAtZero:true,max:100,title:{display:true,text:'Approval Rate (%)'}}}}});
+});
+</script>
+{% endif %}
+{% endblock %}

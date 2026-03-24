@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% block title %}Predict — CreditFairAI{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <h2 class="page-title"><i class="fa-solid fa-magnifying-glass-chart me-2"></i>Credit Risk Prediction</h2>
+  <p class="text-muted mb-4">Fill in the application details to get an AI-powered risk assessment.</p>
+
+  {% if not models_ready %}
+  <div class="alert alert-warning">
+    <i class="fa-solid fa-triangle-exclamation me-2"></i>
+    Models not trained. <a href="/train" class="alert-link">Train first →</a>
+  </div>
+  {% endif %}
+
+  <div class="row g-4">
+    <!-- FORM -->
+    <div class="col-lg-7">
+      <div class="card-custom">
+        <h5 class="card-title-custom"><i class="fa-solid fa-file-invoice me-2"></i>Credit Application</h5>
+        <form id="pform">
+
+          <!-- Model selector -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">AI Model</label>
+            <select class="form-select" name="model_name">
+              <option value="GradientBoosting" selected>XGBoost (Highest Accuracy)</option>
+              <option value="Random Forest">Random Forest</option>
+              <option value="Logistic Regression">Logistic Regression (Most Interpretable)</option>
+              <option value="Deep Neural Network">Deep Neural Network</option>
+            </select>
+          </div>
+          <hr/>
+
+          <!-- Personal -->
+          <h6 class="text-muted mb-3"><i class="fa-solid fa-user me-2"></i>Personal Information</h6>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Sex <span class="badge bg-info">Protected Attribute</span></label>
+              <select class="form-select" name="sex">
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+              <div class="form-text">Used only for fairness monitoring — NOT a model input.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Personal Status</label>
+              <select class="form-select" name="personal_status">
+                <option value="A93">Male — Single</option>
+                <option value="A91">Male — Divorced/Separated</option>
+                <option value="A94">Male — Married/Widowed</option>
+                <option value="A92">Female — Divorced/Separated/Married</option>
+                <option value="A95">Female — Single</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Age (years)</label>
+              <input type="number" class="form-control" name="age" value="35" min="18" max="80"/>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Dependents</label>
+              <input type="number" class="form-control" name="dependents" value="1" min="1" max="7"/>
+            </div>
+          </div>
+
+          <!-- Credit -->
+          <h6 class="text-muted mb-3"><i class="fa-solid fa-credit-card me-2"></i>Credit Details</h6>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Checking Account Status</label>
+              <select class="form-select" name="checking_account">
+                <option value="A11">&lt; 0 DM (overdrawn)</option>
+                <option value="A12">0–200 DM</option>
+                <option value="A13" selected>≥ 200 DM / salary assigned</option>
+                <option value="A14">No checking account</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Credit History</label>
+              <select class="form-select" name="credit_history">
+                <option value="A30">No credits / all paid duly</option>
+                <option value="A31">All paid duly at this bank</option>
+                <option value="A32" selected>Existing credits paid duly</option>
+                <option value="A33">Delay in paying in the past</option>
+                <option value="A34">Critical / other credits</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Credit Amount (DM)</label>
+              <input type="number" class="form-control" name="credit_amount" value="3000" min="200" max="20000"/>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Duration (months)</label>
+              <input type="number" class="form-control" name="duration" value="24" min="4" max="72"/>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Purpose</label>
+              <select class="form-select" name="purpose">
+                <option value="A40">New Car</option>
+                <option value="A41">Used Car</option>
+                <option value="A42">Furniture / Equipment</option>
+                <option value="A43" selected>Radio / Television</option>
+                <option value="A44">Domestic Appliances</option>
+                <option value="A45">Repairs</option>
+                <option value="A46">Education</option>
+                <option value="A48">Retraining</option>
+                <option value="A49">Business</option>
+                <option value="A410">Others</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Savings Account</label>
+              <select class="form-select" name="savings">
+                <option value="A61">&lt; 100 DM</option>
+                <option value="A62">100–499 DM</option>
+                <option value="A63" selected>500–999 DM</option>
+                <option value="A64">≥ 1000 DM</option>
+                <option value="A65">Unknown / No savings</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Installment Rate (% income)</label>
+              <input type="number" class="form-control" name="installment_rate" value="3" min="1" max="4"/>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Existing Credits at Bank</label>
+              <input type="number" class="form-control" name="existing_credits" value="1" min="1" max="4"/>
+            </div>
+          </div>
+
+          <!-- Employment / Housing -->
+          <h6 class="text-muted mb-3"><i class="fa-solid fa-briefcase me-2"></i>Employment &amp; Housing</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label">Employment Since</label>
+              <select class="form-select" name="employment">
+                <option value="A71">Unemployed</option>
+                <option value="A72">&lt; 1 year</option>
+                <option value="A73" selected>1–3 years</option>
+                <option value="A74">4–6 years</option>
+                <option value="A75">≥ 7 years</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Housing</label>
+              <select class="form-select" name="housing">
+                <option value="A151">Rent</option>
+                <option value="A152" selected>Own</option>
+                <option value="A153">For free</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Job</label>
+              <select class="form-select" name="job">
+                <option value="A171">Unemployed / Unskilled (non-resident)</option>
+                <option value="A172">Unskilled (resident)</option>
+                <option value="A173" selected>Skilled Employee</option>
+                <option value="A174">Management / Highly Qualified</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Property</label>
+              <select class="form-select" name="property">
+                <option value="A121" selected>Real Estate</option>
+                <option value="A122">Life Insurance / Savings</option>
+                <option value="A123">Car or Other</option>
+                <option value="A124">Unknown / No Property</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Other Debtors / Guarantors</label>
+              <select class="form-select" name="other_debtors">
+                <option value="A101" selected>None</option>
+                <option value="A102">Co-applicant</option>
+                <option value="A103">Guarantor</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Installment Plans</label>
+              <select class="form-select" name="installment_plans">
+                <option value="A141">Bank</option>
+                <option value="A142">Stores</option>
+                <option value="A143" selected>None</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Telephone</label>
+              <select class="form-select" name="telephone">
+                <option value="A191">None</option>
+                <option value="A192" selected>Yes (registered)</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Foreign Worker</label>
+              <select class="form-select" name="foreign_worker">
+                <option value="A201" selected>Yes</option>
+                <option value="A202">No</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Present Residence Since (yrs)</label>
+              <input type="number" class="form-control" name="residence_since" value="3" min="1" max="4"/>
+            </div>
+          </div>
+
+          <button type="button" id="pred-btn" class="btn btn-main w-100 btn-lg"
+                  onclick="doPredict()" {% if not models_ready %}disabled{% endif %}>
+            <i class="fa-solid fa-magnifying-glass-chart me-2"></i>Assess Credit Risk
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- RESULT PANEL -->
+    <div class="col-lg-5">
+      <div id="placeholder-panel">
+        <div class="card-custom text-center py-5">
+          <i class="fa-solid fa-magnifying-glass-chart fa-4x text-muted mb-3"></i>
+          <h5 class="text-muted">Fill in the form and click<br/>"Assess Credit Risk"</h5>
+        </div>
+      </div>
+
+      <div id="result-panel" style="display:none">
+        <div class="result-card mb-3" id="verdict-card">
+          <div class="text-center py-2">
+            <div id="verdict-icon" class="mb-1"></div>
+            <h3 id="verdict-label" class="fw-bold mb-1"></h3>
+            <span id="verdict-tier" class="badge fs-6"></span>
+          </div>
+          <div class="row g-2 mt-2">
+            <div class="col-6">
+              <div class="mbox">
+                <div class="mval text-danger" id="pbad"></div>
+                <div class="mlbl">Prob. Bad Credit</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="mbox">
+                <div class="mval text-success" id="pgood"></div>
+                <div class="mlbl">Prob. Good Credit</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-custom mb-3">
+          <h6 class="card-title-custom">Risk Score</h6>
+          <canvas id="gauge" height="140"></canvas>
+        </div>
+
+        <div class="card-custom mb-3">
+          <h6 class="card-title-custom">Decision Details</h6>
+          <table class="table table-sm mb-1">
+            <tr><td class="fw-bold">Model</td><td id="d-model"></td></tr>
+            <tr><td class="fw-bold">Threshold</td><td id="d-thresh"></td></tr>
+            <tr><td class="fw-bold">Applicant Sex</td><td id="d-sex"></td></tr>
+          </table>
+          <div id="fnote-box" class="alert alert-info small mb-0" style="display:none">
+            <i class="fa-solid fa-info-circle me-1"></i><span id="fnote"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let gauge=null;
+function doPredict(){
+  const btn=document.getElementById('pred-btn');
+  btn.disabled=true;
+  btn.innerHTML='<i class="fa-solid fa-spinner fa-spin me-2"></i>Analysing…';
+  const fd=new FormData(document.getElementById('pform'));
+  const data={};
+  fd.forEach((v,k)=>{
+    const n=parseFloat(v);
+    data[k]=(k==='sex'||isNaN(n))?v:n;
+  });
+  fetch('/api/predict',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(data)})
+  .then(r=>r.json()).then(res=>{
+    btn.disabled=false;
+    btn.innerHTML='<i class="fa-solid fa-magnifying-glass-chart me-2"></i>Assess Credit Risk';
+    if(res.error){alert('Error: '+res.error);return;}
+    showResult(res);
+  }).catch(e=>{
+    btn.disabled=false;
+    btn.innerHTML='<i class="fa-solid fa-magnifying-glass-chart me-2"></i>Assess Credit Risk';
+    alert('Request failed: '+e);
+  });
+}
+function showResult(r){
+  document.getElementById('placeholder-panel').style.display='none';
+  document.getElementById('result-panel').style.display='block';
+  const ok=r.approved;
+  document.getElementById('verdict-icon').innerHTML=ok
+    ?'<i class="fa-solid fa-circle-check fa-3x text-success"></i>'
+    :'<i class="fa-solid fa-circle-xmark fa-3x text-danger"></i>';
+  const lbl=document.getElementById('verdict-label');
+  lbl.textContent=r.label; lbl.className='fw-bold '+(ok?'text-success':'text-danger');
+  const tier=document.getElementById('verdict-tier');
+  tier.textContent=r.risk_tier; tier.className='badge fs-6 bg-'+r.tier_color;
+  document.getElementById('pbad').textContent=(r.prob_bad*100).toFixed(1)+'%';
+  document.getElementById('pgood').textContent=(r.prob_good*100).toFixed(1)+'%';
+  document.getElementById('d-model').textContent=r.model_used;
+  document.getElementById('d-thresh').textContent=r.threshold;
+  document.getElementById('d-sex').textContent=r.sex;
+  const fn=document.getElementById('fnote-box');
+  if(r.fairness_note){fn.style.display='block';document.getElementById('fnote').textContent=r.fairness_note;}
+  else{fn.style.display='none';}
+  buildGauge(r.prob_bad);
+}
+function buildGauge(pb){
+  const ctx=document.getElementById('gauge').getContext('2d');
+  if(gauge)gauge.destroy();
+  gauge=new Chart(ctx,{type:'doughnut',
+    data:{labels:['Good','Bad'],
+      datasets:[{data:[Math.round((1-pb)*100),Math.round(pb*100)],
+        backgroundColor:['#1A7A4A','#C0392B'],borderWidth:2}]},
+    options:{cutout:'65%',plugins:{
+      legend:{position:'bottom'},
+      tooltip:{callbacks:{label:c=>c.label+': '+c.raw+'%'}}}}});
+}
+</script>
+{% endblock %}
