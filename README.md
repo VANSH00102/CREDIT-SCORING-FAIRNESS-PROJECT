@@ -1,3 +1,4 @@
+[report research.pdf](https://github.com/user-attachments/files/26708111/report.research.pdf)
 # Credit Scoring Fairness Project
 
 ## 📌 About
